@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Physics Bouncing Ball Sandbox</title>
+  <!-- Tailwind CSS CDN for modern UI layout -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+      font-family: 'Inter', sans-serif;
+      user-select: none;
+    }
+
+    /* Custom range input styling */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: #334155;
+      border-radius: 6px;
+      height: 6px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      transition: transform 0.1s ease, background-color 0.1s ease;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      background: #7dd3fc;
+    }
+
+    /* Canvas shadow overlay */
+    .canvas-container {
+      box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-3 md:p-6">
+
+  <!-- Main Container Card -->
+  <div class="w-full max-w-5xl bg-slate-900/90 border border-slate-800 rounded-3xl backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col lg:flex-row">
+    
+    <!-- Left Panel: Interactive Simulation Area -->
+    <div class="flex-1 p-4 md:p-6 flex flex-col items-center justify-between border-b lg:border-b-0 lg:border-r border-slate-800 relative">
+      
+      <!-- Top Title Bar -->
+      <div class="w-full flex justify-between items-center mb-4">
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
+            <i data-lucide="activity" class="w-5 h-5 text-sky-400"></i>
+            Physics Ball Sandbox
+          </h1>
+          <p class="text-xs text-slate-400">Interactive Newtonian Kinematics & Energy Dissipation</p>
+        </div>
+        
+        <!-- Quick Action Buttons -->
+        <div class="flex items-center gap-2">
+          <button id="resetBtn" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1 text-xs font-medium border border-slate-700" title="Reset Simulation">
+            <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reset
+          </button>
+          <button id="pauseBtn" class="p-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 transition flex items-center gap-1 text-xs font-medium border border-sky-500/30" title="Pause / Resume">
+            <i data-lucide="pause" id="pauseIcon" class="w-4 h-4"></i>
+            <span id="pauseText">Pause</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Simulation Canvas Area -->
+      <div class="relative w-full h-[380px] md:h-[420px] bg-slate-950 rounded-2xl border border-slate-800/80 overflow-hidden canvas-container cursor-grab active:cursor-grabbing flex items-center justify-center">
+        
+        <canvas id="physicsCanvas" class="w-full h-full block"></canvas>
+
+        <!-- Overlay Cue text -->
+        <div id="dragHint" class="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-none text-[11px] font-medium bg-slate-900/80 text-slate-400 border border-slate-800 px-3 py-1.5 rounded-full backdrop-blur-md transition-opacity duration-300 flex items-center gap-1.5">
+          <i data-lucide="hand" class="w-3.5 h-3.5 text-sky-400"></i> Click & Drag ball to throw
+        </div>
+
+        <!-- Real-time HUD stats on canvas -->
+        <div class="absolute bottom-3 left-3 pointer-events-none flex flex-wrap gap-2 text-[10px] font-mono">
+          <div class="bg-slate-900/80 border border-slate-800/80 px-2.5 py-1 rounded-lg backdrop-blur text-slate-300">
+            Velocity: <span id="hudVelocity" class="text-sky-400 font-semibold">0.0 m/s</span>
+          </div>
+          <div class="bg-slate-900/80 border border-slate-800/80 px-2.5 py-1 rounded-lg backdrop-blur text-slate-300">
+            Energy: <span id="hudEnergy" class="text-emerald-400 font-semibold">0.0 J</span>
+          </div>
+          <div class="bg-slate-900/80 border border-slate-800/80 px-2.5 py-1 rounded-lg backdrop-blur text-slate-300">
+            Bounces: <span id="hudBounces" class="text-amber-400 font-semibold">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Presets Toolbar -->
+      <div class="w-full mt-4">
+        <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">Preset Environments</span>
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          <button class="preset-btn px-2.5 py-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/50 text-xs text-slate-300 font-medium transition text-center" data-g="9.81" data-e="0.78" data-trail="true">Earth</button>
+          <button class="preset-btn px-2.5 py-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/50 text-xs text-slate-300 font-medium transition text-center" data-g="1.62" data-e="0.88" data-trail="true">Moon</button>
+          <button class="preset-btn px-2.5 py-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/50 text-xs text-slate-300 font-medium transition text-center" data-g="24.79" data-e="0.65" data-trail="true">Jupiter</button>
+          <button class="preset-btn px-2.5 py-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/50 text-xs text-slate-300 font-medium transition text-center" data-g="9.81" data-e="0.92" data-trail="true">Superball</button>
+          <button class="preset-btn px-2.5 py-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/50 text-xs text-slate-300 font-medium transition text-center" data-g="9.81" data-e="0.40" data-trail="true">Mud</button>
+          <button class="preset-btn px-2.5 py-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/50 text-xs text-slate-300 font-medium transition text-center" data-g="0.00" data-e="0.95" data-trail="true">Zero-G</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Controls & Parameter Tweak Controls -->
+    <div class="w-full lg:w-80 p-5 md:p-6 bg-slate-900/50 flex flex-col justify-between gap-6">
+      
+      <div>
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300 mb-4 flex items-center gap-2">
+          <i data-lucide="sliders" class="w-4 h-4 text-sky-400"></i> Physical Constants
+        </h2>
+
+        <div class="space-y-4">
+          
+          <!-- Gravity Slider -->
+          <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
+            <div class="flex justify-between text-xs font-medium mb-1.5">
+              <span class="text-slate-400">Gravity ($g$)</span>
+              <span id="valGravity" class="text-sky-400 font-mono">9.81 m/s²</span>
+            </div>
+            <input id="sliderGravity" type="range" min="0" max="30" step="0.1" value="9.81" class="w-full">
+          </div>
+
+          <!-- Restitution / Elasticity Slider -->
+          <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
+            <div class="flex justify-between text-xs font-medium mb-1.5">
+              <span class="text-slate-400">Restitution ($e$)</span>
+              <span id="valRestitution" class="text-sky-400 font-mono">0.78</span>
+            </div>
+            <input id="sliderRestitution" type="range" min="0" max="1" step="0.01" value="0.78" class="w-full">
+          </div>
+
+          <!-- Air Resistance / Drag -->
+          <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
+            <div class="flex justify-between text-xs font-medium mb-1.5">
+              <span class="text-slate-400">Air Drag Coefficient</span>
+              <span id="valDrag" class="text-sky-400 font-mono">0.002</span>
+            </div>
+            <input id="sliderDrag" type="range" min="0" max="0.02" step="0.001" value="0.002" class="w-full">
+          </div>
+
+          <!-- Ball Radius / Size -->
+          <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
+            <div class="flex justify-between text-xs font-medium mb-1.5">
+              <span class="text-slate-400">Ball Radius</span>
+              <span id="valRadius" class="text-sky-400 font-mono">30 px</span>
+            </div>
+            <input id="sliderRadius" type="range" min="15" max="50" step="1" value="30" class="w-full">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Toggle Switches & Options -->
+      <div class="space-y-3 pt-2 border-t border-slate-800">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Visualization</h3>
+        
+        <label class="flex items-center justify-between cursor-pointer bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 text-xs text-slate-300">
+          <span class="flex items-center gap-2">
+            <i data-lucide="navigation" class="w-3.5 h-3.5 text-sky-400"></i> Velocity Vectors
+          </span>
+          <input type="checkbox" id="toggleVector" checked class="accent-sky-500 w-4 h-4 rounded cursor-pointer">
+        </label>
+
+        <label class="flex items-center justify-between cursor-pointer bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 text-xs text-slate-300">
+          <span class="flex items-center gap-2">
+            <i data-lucide="footprints" class="w-3.5 h-3.5 text-purple-400"></i> Trajectory Trail
+          </span>
+          <input type="checkbox" id="toggleTrail" checked class="accent-sky-500 w-4 h-4 rounded cursor-pointer">
+        </label>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Interactive JavaScript Engine -->
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    // Setup Canvas and Context
+    const canvas = document.getElementById('physicsCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // UI Elements
+    const sliderGravity = document.getElementById('sliderGravity');
+    const sliderRestitution = document.getElementById('sliderRestitution');
+    const sliderDrag = document.getElementById('sliderDrag');
+    const sliderRadius = document.getElementById('sliderRadius');
+
+    const valGravity = document.getElementById('valGravity');
+    const valRestitution = document.getElementById('valRestitution');
+    const valDrag = document.getElementById('valDrag');
+    const valRadius = document.getElementById('valRadius');
+
+    const toggleVector = document.getElementById('toggleVector');
+    const toggleTrail = document.getElementById('toggleTrail');
+
+    const hudVelocity = document.getElementById('hudVelocity');
+    const hudEnergy = document.getElementById('hudEnergy');
+    const hudBounces = document.getElementById('hudBounces');
+    const dragHint = document.getElementById('dragHint');
+
+    const resetBtn = document.getElementById('resetBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const pauseIcon = document.getElementById('pauseIcon');
+    const pauseText = document.getElementById('pauseText');
+
+    // Simulation State Parameters
+    let isRunning = true;
+    let bounceCount = 0;
+    
+    // Physical Constants Controlled by UI
+    let params = {
+      g: parseFloat(sliderGravity.value),
+      e: parseFloat(sliderRestitution.value),
+      drag: parseFloat(sliderDrag.value),
+      radius: parseFloat(sliderRadius.value),
+      showVector: toggleVector.checked,
+      showTrail: toggleTrail.checked
+    };
+
+    // Dynamic Responsive Canvas Resizing
+    let canvasWidth, canvasHeight, floorY;
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      canvasWidth = canvas.width;
+      canvasHeight = canvas.height;
+      floorY = canvasHeight - 24 * window.devicePixelRatio;
+    }
+
+    // Ball State
+    const ball = {
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      squashX: 1,
+      squashY: 1,
+      mass: 1,
+      isDragging: false,
+      dragStartX: 0,
+      dragStartY: 0,
+      trail: [],
+      ripples: []
+    };
+
+    function resetBallPosition() {
+      ball.x = canvasWidth / 2;
+      ball.y = 80 * window.devicePixelRatio;
+      ball.vx = (Math.random() - 0.5) * 4 * window.devicePixelRatio;
+      ball.vy = 0;
+      ball.squashX = 1;
+      ball.squashY = 1;
+      ball.trail = [];
+      bounceCount = 0;
+      hudBounces.textContent = bounceCount;
+    }
+
+    // Handle Drag Dynamics
+    let mouse = { x: 0, y: 0, lastX: 0, lastY: 0, vx: 0, vy: 0 };
+
+    function getCanvasCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * (canvas.width / rect.width),
+        y: (clientY - rect.top) * (canvas.height / rect.height)
+      };
+    }
+
+    function onPointerDown(e) {
+      const coords = getCanvasCoords(e);
+      const dx = coords.x - ball.x;
+      const dy = coords.y - ball.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist <= params.radius * window.devicePixelRatio * 1.5) {
+        ball.isDragging = true;
+        ball.vx = 0;
+        ball.vy = 0;
+        mouse.x = coords.x;
+        mouse.y = coords.y;
+        mouse.lastX = coords.x;
+        mouse.lastY = coords.y;
+        dragHint.style.opacity = '0';
+      }
+    }
+
+    function onPointerMove(e) {
+      if (!ball.isDragging) return;
+      const coords = getCanvasCoords(e);
+      mouse.x = coords.x;
+      mouse.y = coords.y;
+
+      // Move ball directly with drag
+      ball.x = mouse.x;
+      ball.y = Math.min(mouse.y, floorY - params.radius * window.devicePixelRatio);
+
+      // Track drag velocity for toss calculation
+      mouse.vx = (mouse.x - mouse.lastX);
+      mouse.vy = (mouse.y - mouse.lastY);
+
+      mouse.lastX = mouse.x;
+      mouse.lastY = mouse.y;
+    }
+
+    function onPointerUp() {
+      if (ball.isDragging) {
+        ball.isDragging = false;
+        // Release with toss velocity
+        ball.vx = mouse.vx * 0.8;
+        ball.vy = mouse.vy * 0.8;
+      }
+    }
+
+    // Physics Update Loop
+    let lastTime = performance.now();
+
+    function updatePhysics(dt) {
+      if (!isRunning || ball.isDragging) return;
+
+      const scale = window.devicePixelRatio;
+      const r = params.radius * scale;
+
+      // Apply Gravity Acceleration (pixels per second squared)
+      const gScaled = params.g * 80 * scale; 
+      ball.vy += gScaled * dt;
+
+      // Apply Air Drag
+      const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+      if (speed > 0) {
+        const dragForce = params.drag * speed;
+        ball.vx -= ball.vx * dragForce * dt * 60;
+        ball.vy -= ball.vy * dragForce * dt * 60;
+      }
+
+      // Position Integration
+      ball.x += ball.vx * dt * 60;
+      ball.y += ball.vy * dt * 60;
+
+      // Gradual recovery of squash deformation
+      ball.squashX += (1 - ball.squashX) * 0.15;
+      ball.squashY += (1 - ball.squashY) * 0.15;
+
+      // Floor Collision
+      if (ball.y + r >= floorY) {
+        ball.y = floorY - r;
+
+        // Collision logic only if moving downwards
+        if (ball.vy > 0) {
+          if (Math.abs(ball.vy) > 2 * scale) {
+            bounceCount++;
+            hudBounces.textContent = bounceCount;
+
+            // Trigger Ground Ripple
+            ball.ripples.push({
+              x: ball.x,
+              y: floorY,
+              radius: 5 * scale,
+              maxRadius: Math.min(Math.abs(ball.vy) * 1.2, 50 * scale),
+              opacity: 0.8
+            });
+          }
+
+          // Elastic Energy Bounce with Restitution
+          ball.vy = -ball.vy * params.e;
+          ball.vx *= (0.95 + params.e * 0.05); // Friction on rebound
+
+          // Deform / Squash on impact (proportional to velocity)
+          const impactSpeed = Math.abs(ball.vy);
+          const squashFactor = Math.min(impactSpeed / (25 * scale), 0.45);
+          ball.squashY = 1 - squashFactor;
+          ball.squashX = 1 + squashFactor * 0.8;
+
+          // Rest velocity threshold to prevent micro-jittering
+          if (Math.abs(ball.vy) < 0.4 * scale && params.g > 0) {
+            ball.vy = 0;
+          }
+        }
+      }
+
+      // Wall Collisions (Left & Right Bounds)
+      if (ball.x - r <= 0) {
+        ball.x = r;
+        ball.vx = -ball.vx * params.e;
+      } else if (ball.x + r >= canvasWidth) {
+        ball.x = canvasWidth - r;
+        ball.vx = -ball.vx * params.e;
+      }
+
+      // Record Trail Points
+      if (params.showTrail) {
+        ball.trail.push({ x: ball.x, y: ball.y, alpha: 1.0 });
+        if (ball.trail.length > 25) ball.trail.shift();
+      } else {
+        ball.trail = [];
+      }
+
+      // Update Ground Ripples
+      for (let i = ball.ripples.length - 1; i >= 0; i--) {
+        const rip = ball.ripples[i];
+        rip.radius += 2 * scale;
+        rip.opacity -= 0.03;
+        if (rip.opacity <= 0) ball.ripples.splice(i, 1);
+      }
+    }
+
+    // Render Canvas Frame
+    function drawScene() {
+      const scale = window.devicePixelRatio;
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+      // 1. Draw Floor Line and Grid Gradient
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 2 * scale;
+      ctx.beginPath();
+      ctx.moveTo(0, floorY);
+      ctx.lineTo(canvasWidth, floorY);
+      ctx.stroke();
+
+      // Floor Base fill
+      const floorGrad = ctx.createLinearGradient(0, floorY, 0, canvasHeight);
+      floorGrad.addColorStop(0, 'rgba(51, 65, 85, 0.4)');
+      floorGrad.addColorStop(1, 'rgba(15, 23, 42, 0.8)');
+      ctx.fillStyle = floorGrad;
+      ctx.fillRect(0, floorY, canvasWidth, canvasHeight - floorY);
+
+      // 2. Draw Ground Ripples
+      ball.ripples.forEach(rip => {
+        ctx.beginPath();
+        ctx.ellipse(rip.x, rip.y, rip.radius, rip.radius * 0.3, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(56, 189, 248, ${rip.opacity})`;
+        ctx.lineWidth = 1.5 * scale;
+        ctx.stroke();
+      });
+
+      // 3. Draw Trajectory Trail
+      if (params.showTrail && ball.trail.length > 1) {
+        ctx.beginPath();
+        for (let i = 0; i < ball.trail.length - 1; i++) {
+          const p1 = ball.trail[i];
+          const p2 = ball.trail[i + 1];
+          ctx.strokeStyle = `rgba(168, 85, 247, ${ (i / ball.trail.length) * 0.5 })`;
+          ctx.lineWidth = (i / ball.trail.length) * (params.radius * scale * 0.5);
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.stroke();
+        }
+      }
+
+      // 4. Dynamic Shadow beneath Ball
+      const r = params.radius * scale;
+      const heightAboveGround = Math.max(0, floorY - (ball.y + r));
+      const maxShadowDist = 300 * scale;
+      const shadowRatio = Math.max(0, 1 - heightAboveGround / maxShadowDist);
+
+      const shadowWidth = r * (1 + (1 - shadowRatio) * 0.8) * ball.squashX;
+      const shadowHeight = (8 * scale) * shadowRatio;
+      const shadowAlpha = 0.6 * shadowRatio;
+
+      if (shadowRatio > 0) {
+        ctx.beginPath();
+        ctx.ellipse(ball.x, floorY, shadowWidth, shadowHeight, 0, 0, Math.PI * 2);
+        const shadowGrad = ctx.createRadialGradient(ball.x, floorY, 0, ball.x, floorY, shadowWidth);
+        shadowGrad.addColorStop(0, `rgba(0, 0, 0, ${shadowAlpha})`);
+        shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = shadowGrad;
+        ctx.fill();
+      }
+
+      // 5. Draw 3D Spherical Ball
+      ctx.save();
+      ctx.translate(ball.x, ball.y);
+      ctx.scale(ball.squashX, ball.squashY);
+
+      // Ball Radial Gradient Lighting
+      const ballGrad = ctx.createRadialGradient(
+        -r * 0.3, -r * 0.3, r * 0.1,
+        0, 0, r
+      );
+      ballGrad.addColorStop(0, '#38bdf8'); // Highlight
+      ballGrad.addColorStop(0.5, '#0284c7'); // Core tone
+      ballGrad.addColorStop(1, '#0369a1'); // Shadow edge
+
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fillStyle = ballGrad;
+      ctx.shadowColor = 'rgba(2, 132, 199, 0.4)';
+      ctx.shadowBlur = 12 * scale;
+      ctx.fill();
+      ctx.restore();
+
+      // 6. Draw Velocity Vector
+      if (params.showVector && !ball.isDragging && (Math.abs(ball.vx) > 0.1 || Math.abs(ball.vy) > 0.1)) {
+        const vScale = 0.2;
+        const endX = ball.x + ball.vx * vScale;
+        const endY = ball.y + ball.vy * vScale;
+
+        ctx.beginPath();
+        ctx.moveTo(ball.x, ball.y);
+        ctx.lineTo(endX, endY);
+        ctx.strokeStyle = '#f43f5e';
+        ctx.lineWidth = 2 * scale;
+        ctx.stroke();
+
+        // Arrow head
+        const angle = Math.atan2(ball.vy, ball.vx);
+        ctx.beginPath();
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(endX - 8 * Math.cos(angle - Math.PI / 6), endY - 8 * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(endX - 8 * Math.cos(angle + Math.PI / 6), endY - 8 * Math.sin(angle + Math.PI / 6));
+        ctx.fillStyle = '#f43f5e';
+        ctx.fill();
+      }
+
+      // 7. Update HUD Numbers
+      const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy) / scale;
+      const height = Math.max(0, (floorY - r - ball.y) / scale);
+      const potentialEnergy = ball.mass * params.g * (height / 10);
+      const kineticEnergy = 0.5 * ball.mass * Math.pow(speed / 10, 2);
+      const totalEnergy = potentialEnergy + kineticEnergy;
+
+      hudVelocity.textContent = `${speed.toFixed(1)} m/s`;
+      hudEnergy.textContent = `${totalEnergy.toFixed(1)} J`;
+    }
+
+    // Main Simulation Loop
+    function loop(currentTime) {
+      const dt = Math.min((currentTime - lastTime) / 1000, 0.032); // Clamp step to max 30FPS equivalent to prevent tunneling
+      lastTime = currentTime;
+
+      updatePhysics(dt);
+      drawScene();
+
+      requestAnimationFrame(loop);
+    }
+
+    // Event Listeners for UI Controls
+    sliderGravity.addEventListener('input', (e) => {
+      params.g = parseFloat(e.target.value);
+      valGravity.textContent = `${params.g.toFixed(2)} m/s²`;
+    });
+
+    sliderRestitution.addEventListener('input', (e) => {
+      params.e = parseFloat(e.target.value);
+      valRestitution.textContent = params.e.toFixed(2);
+    });
+
+    sliderDrag.addEventListener('input', (e) => {
+      params.drag = parseFloat(e.target.value);
+      valDrag.textContent = params.drag.toFixed(3);
+    });
+
+    sliderRadius.addEventListener('input', (e) => {
+      params.radius = parseFloat(e.target.value);
+      valRadius.textContent = `${params.radius} px`;
+    });
+
+    toggleVector.addEventListener('change', (e) => params.showVector = e.target.checked);
+    toggleTrail.addEventListener('change', (e) => params.showTrail = e.target.checked);
+
+    // Preset Buttons Listener
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        params.g = parseFloat(btn.dataset.g);
+        params.e = parseFloat(btn.dataset.e);
+
+        sliderGravity.value = params.g;
+        sliderRestitution.value = params.e;
+
+        valGravity.textContent = `${params.g.toFixed(2)} m/s²`;
+        valRestitution.textContent = params.e.toFixed(2);
+
+        resetBallPosition();
+      });
+    });
+
+    // Reset & Pause Controls
+    resetBtn.addEventListener('click', resetBallPosition);
+
+    pauseBtn.addEventListener('click', () => {
+      isRunning = !isRunning;
+      pauseText.textContent = isRunning ? 'Pause' : 'Resume';
+      pauseIcon.setAttribute('data-lucide', isRunning ? 'pause' : 'play');
+      lucide.createIcons();
+    });
+
+    // Mouse & Touch Pointer Listeners
+    canvas.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+
+    canvas.addEventListener('touchstart', onPointerDown, { passive: true });
+    window.addEventListener('touchmove', onPointerMove, { passive: true });
+    window.addEventListener('touchend', onPointerUp);
+
+    // Window Resize Handling
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      resetBallPosition();
+    });
+
+    // Initialization
+    window.onload = () => {
+      resizeCanvas();
+      resetBallPosition();
+      requestAnimationFrame(loop);
+    };
+  </script>
+</body>
+</html>
